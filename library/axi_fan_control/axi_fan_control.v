@@ -35,6 +35,9 @@
 `timescale 1ns / 1ps
 
 module axi_fan_control #(
+  // currently 0 = UltraScale (original configuration), 1 = 7 Series / Zynq
+  parameter     DEVICE_TYPE = 0,
+  parameter     TEMP_INPUT_BITS = (DEVICE_TYPE == 0) ? 10 : 12, // 7 Series XADC has 12 bit resolution
   parameter     ID = 0,
   parameter     PWM_FREQUENCY_HZ  = 5000,
   parameter     INTERNAL_SYSMONE  = 0,
@@ -55,7 +58,7 @@ module axi_fan_control #(
   parameter     TEMP_75_H         = 90,
   parameter     TEMP_00_L         = 95
 ) (
-  input       [ 9:0]      temp_in,
+  input       [ TEMP_INPUT_BITS-1:0]      temp_in,
   input                   tacho,
   output    reg           irq,
   output                  pwm,
@@ -95,15 +98,35 @@ module axi_fan_control #(
   localparam        OVERFLOW_LIM            = CLK_FREQUENCY * 5;
   localparam        AVERAGE_DIV             = 2**AVG_POW;
 
-  localparam        THRESH_PWM_000          = (INTERNAL_SYSMONE == 1) ? (((TEMP_00_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_00_H * 41 + 11195) / 20);
-  localparam        THRESH_PWM_025_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_25_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_25_L * 41 + 11195) / 20);
-  localparam        THRESH_PWM_025_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_25_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_25_H * 41 + 11195) / 20);
-  localparam        THRESH_PWM_050_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_50_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_50_L * 41 + 11195) / 20);
-  localparam        THRESH_PWM_050_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_50_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_50_H * 41 + 11195) / 20);
-  localparam        THRESH_PWM_075_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_75_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_75_L * 41 + 11195) / 20);
-  localparam        THRESH_PWM_075_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_75_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_75_H * 41 + 11195) / 20);
-  localparam        THRESH_PWM_100          = (INTERNAL_SYSMONE == 1) ? (((TEMP_00_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_00_L * 41 + 11195) / 20);
-
+generate
+  if(DEVICE_TYPE == 0)
+  begin: ThresholdValues
+    // this is for SYSMONE 4
+    localparam        THRESH_PWM_000          = (INTERNAL_SYSMONE == 1) ? (((TEMP_00_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_00_H * 41 + 11195) / 20);
+    localparam        THRESH_PWM_025_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_25_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_25_L * 41 + 11195) / 20);
+    localparam        THRESH_PWM_025_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_25_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_25_H * 41 + 11195) / 20);
+    localparam        THRESH_PWM_050_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_50_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_50_L * 41 + 11195) / 20);
+    localparam        THRESH_PWM_050_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_50_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_50_H * 41 + 11195) / 20);
+    localparam        THRESH_PWM_075_L        = (INTERNAL_SYSMONE == 1) ? (((TEMP_75_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_75_L * 41 + 11195) / 20);
+    localparam        THRESH_PWM_075_H        = (INTERNAL_SYSMONE == 1) ? (((TEMP_75_H + 280.2308787) * 65535) / 509.3140064) : ((TEMP_75_H * 41 + 11195) / 20);
+    localparam        THRESH_PWM_100          = (INTERNAL_SYSMONE == 1) ? (((TEMP_00_L + 280.2308787) * 65535) / 509.3140064) : ((TEMP_00_L * 41 + 11195) / 20);
+  end
+  else
+  begin: ThresholdValues
+    // Kintex-7
+    // always the same formula
+    localparam        THRESH_PWM_000          = ((TEMP_00_H + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_025_L        = ((TEMP_25_L + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_025_H        = ((TEMP_25_H + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_050_L        = ((TEMP_50_L + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_050_H        = ((TEMP_50_H + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_075_L        = ((TEMP_75_L + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_075_H        = ((TEMP_75_H + 273.15) * 4096) / 503.975;
+    localparam        THRESH_PWM_100          = ((TEMP_00_L + 273.15) * 4096) / 503.975;
+  end
+endgenerate
+  $info("Using pre-computed thresholds THRESH_PWM_000=%x, THRESH_PWM_025_L=%x, THRESH_PWM_025_H=%x, THRESH_PWM_050_L=%x, THRESH_PWM_050_H=%x, THRESH_PWM_075_L=%x, THRESH_PWM_075_H=%x and THRESH_PWM_100=%x", ThresholdValues.THRESH_PWM_000, ThresholdValues.THRESH_PWM_025_L, ThresholdValues.THRESH_PWM_025_H, ThresholdValues.THRESH_PWM_050_L, ThresholdValues.THRESH_PWM_050_H, ThresholdValues.THRESH_PWM_075_L, ThresholdValues.THRESH_PWM_075_H, ThresholdValues.THRESH_PWM_100);
+  
   //pwm params
   localparam        PWM_ONTIME_25           = PWM_PERIOD / 4;
   localparam        PWM_ONTIME_50           = PWM_PERIOD / 2;
@@ -160,14 +183,14 @@ module axi_fan_control #(
   reg   [15:0]  presc_reg = 'h0;
   reg   [31:0]  up_pwm_width = 'd0;
 
-  reg   [31:0]  up_temp_00_h  = THRESH_PWM_000  ;
-  reg   [31:0]  up_temp_25_l  = THRESH_PWM_025_L;
-  reg   [31:0]  up_temp_25_h  = THRESH_PWM_025_H;
-  reg   [31:0]  up_temp_50_l  = THRESH_PWM_050_L;
-  reg   [31:0]  up_temp_50_h  = THRESH_PWM_050_H;
-  reg   [31:0]  up_temp_75_l  = THRESH_PWM_075_L;
-  reg   [31:0]  up_temp_75_h  = THRESH_PWM_075_H;
-  reg   [31:0]  up_temp_100_l = THRESH_PWM_100  ;
+  reg   [31:0]  up_temp_00_h  = ThresholdValues.THRESH_PWM_000  ;
+  reg   [31:0]  up_temp_25_l  = ThresholdValues.THRESH_PWM_025_L;
+  reg   [31:0]  up_temp_25_h  = ThresholdValues.THRESH_PWM_025_H;
+  reg   [31:0]  up_temp_50_l  = ThresholdValues.THRESH_PWM_050_L;
+  reg   [31:0]  up_temp_50_h  = ThresholdValues.THRESH_PWM_050_H;
+  reg   [31:0]  up_temp_75_l  = ThresholdValues.THRESH_PWM_075_L;
+  reg   [31:0]  up_temp_75_h  = ThresholdValues.THRESH_PWM_075_H;
+  reg   [31:0]  up_temp_100_l = ThresholdValues.THRESH_PWM_100  ;
 
   reg   [31:0]  up_tacho_25 = TACHO_T25;
   reg   [31:0]  up_tacho_50 = TACHO_T50;
@@ -535,14 +558,14 @@ module axi_fan_control #(
       up_tacho_tol <= 'd0;
       up_tacho_en <= 'd0;
       up_scratch <= 'd0;
-      up_temp_00_h <= THRESH_PWM_000;
-      up_temp_25_l <= THRESH_PWM_025_L;
-      up_temp_25_h <= THRESH_PWM_025_H;
-      up_temp_50_l <= THRESH_PWM_050_L;
-      up_temp_50_h <= THRESH_PWM_050_H;
-      up_temp_75_l <= THRESH_PWM_075_L;
-      up_temp_75_h <= THRESH_PWM_075_H;
-      up_temp_100_l <= THRESH_PWM_100;
+      up_temp_00_h <= ThresholdValues.THRESH_PWM_000;
+      up_temp_25_l <= ThresholdValues.THRESH_PWM_025_L;
+      up_temp_25_h <= ThresholdValues.THRESH_PWM_025_H;
+      up_temp_50_l <= ThresholdValues.THRESH_PWM_050_L;
+      up_temp_50_h <= ThresholdValues.THRESH_PWM_050_H;
+      up_temp_75_l <= ThresholdValues.THRESH_PWM_075_L;
+      up_temp_75_h <= ThresholdValues.THRESH_PWM_075_H;
+      up_temp_100_l <= ThresholdValues.THRESH_PWM_100;
       up_tacho_25 <= TACHO_T25;
       up_tacho_50 <= TACHO_T50;
       up_tacho_75 <= TACHO_T75;
